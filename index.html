@@ -584,6 +584,70 @@
       wordCountEl.textContent = total.toLocaleString('en');
     };
 
+    const generateSessionSummary = (metrics) => {
+      const minutes = Math.round(metrics.durationMs / 60000);
+      const words = metrics.totalWords;
+      const wpm = metrics.overallWpm;
+
+      let speedSentence = '';
+      if (wpm < 35) {
+        speedSentence = 'This speed is a little slower than average.';
+      } else if (wpm <= 40) {
+        speedSentence = 'This speed is close to average.';
+      } else {
+        speedSentence = 'This speed is a little faster than average.';
+      }
+
+      const minuteSpeeds = metrics.minuteByMinute || [];
+      const chunkSize = Math.max(1, Math.floor(minuteSpeeds.length / 3));
+      const firstThird = minuteSpeeds.slice(0, chunkSize);
+      const lastThird = minuteSpeeds.slice(-chunkSize);
+      const avg = (arr) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0);
+      const flowSentence = (() => {
+        const firstAvg = avg(firstThird);
+        const lastAvg = avg(lastThird);
+        if (firstAvg < lastAvg) return 'Your typing started slowly and became faster as the session continued.';
+        if (firstAvg > lastAvg) return 'Your typing started quickly and became slower later in the session.';
+        return 'Your typing speed stayed mostly consistent throughout the session.';
+      })();
+
+      const pauseCount = metrics.pauseCount;
+      let pauseDetail = '';
+      if (metrics.pauseSegments && metrics.pauseSegments.length) {
+        const longest = metrics.pauseSegments.reduce((max, p) => (p.durationMs > max.durationMs ? p : max), metrics.pauseSegments[0]);
+        if ((longest.durationMs || 0) >= 10000) {
+          const minuteMark = Math.round((longest.startMs || 0) / 60000);
+          pauseDetail = longest.type === 'away_pause'
+            ? `There was a longer pause around the ${minuteMark} minute mark while you were away from the writing window.`
+            : `There was a longer pause around the ${minuteMark} minute mark.`;
+        }
+      }
+
+      const corrections = metrics.backspaceCount + metrics.deleteCount;
+
+      let pasteSentence = '';
+      if (metrics.pasteEvents && metrics.pasteEvents > 0) {
+        const mark = metrics.pasteMoments && metrics.pasteMoments.length
+          ? Math.round(metrics.pasteMoments[0] / 60000)
+          : 0;
+        pasteSentence = `You pasted text ${metrics.pasteEvents} time(s), including a larger paste around the ${mark} minute mark.`;
+      }
+
+      const sentences = [
+        `During this writing session, you wrote for about ${minutes} minutes and finished with ${words} words, with an average typing speed of ${wpm} words per minute.`,
+        speedSentence,
+        flowSentence,
+        `You paused ${pauseCount} times while writing.`,
+      ];
+
+      if (pauseDetail) sentences.push(pauseDetail);
+      sentences.push(`You used backspace and delete ${corrections} times to revise your text.`);
+      if (pasteSentence) sentences.push(pasteSentence);
+      sentences.push('Every writing session looks different. This record shows what happened during this writing activity.');
+
+      return sentences.join(' ');
+    };
+
     textarea.addEventListener('input', () => {
       autoResize();
       updateCount();
@@ -655,9 +719,7 @@
 
       const formatSeconds = (ms) => `${(ms / 1000).toFixed(1)}s`;
 
-      const summaryText = `You wrote ${metrics.totalWords} words in ${formatDuration(metrics.durationMs)} at ${metrics.overallWpm} WPM, `
-        + `with ${metrics.backspaceCount + metrics.deleteCount} corrections and ${metrics.pasteEvents} paste action(s). `
-        + `You paused ${metrics.pauseCount} time(s) for ${formatSeconds(metrics.totalPausedTime)} (longest ${formatSeconds(metrics.longestPause)}).`;
+      const summaryText = generateSessionSummary(metrics);
       const summaryLines = doc.splitTextToSize(summaryText, maxWidth);
       summaryLines.forEach((line) => {
         if (reportY > pageHeight - margin) {
