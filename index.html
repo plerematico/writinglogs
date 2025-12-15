@@ -253,15 +253,13 @@
       const eventLog = [];
       let sessionStarted = false;
       let sessionStartTime = 0;
-      let lastTextChangeTime = 0;
+      let lastInputTime = 0;
       let lastValue = textarea.value;
+      let lastWordCount = 0;
       let pasteEvents = 0;
       let pastedCharacters = 0;
       let backspaceCount = 0;
       let deleteCount = 0;
-      let totalAddedChars = 0;
-      let totalDeletedChars = 0;
-      let charsTypedExcludingPaste = 0;
       const minuteBuckets = new Map();
 
       const allowedKeys = new Set([
@@ -278,11 +276,24 @@
 
       const shortcutKeys = new Set(['c', 'x', 'v', 'z', 'y', 'a']);
 
+      const trackWords = (currentWords, eventTime) => {
+        const delta = Math.max(currentWords - lastWordCount, 0);
+        if (!sessionStarted || delta === 0) {
+          lastWordCount = currentWords;
+          return;
+        }
+        const minuteIndex = Math.floor(eventTime / 60000);
+        const prev = minuteBuckets.get(minuteIndex) || 0;
+        minuteBuckets.set(minuteIndex, prev + delta);
+        lastWordCount = currentWords;
+      };
+
       const ensureSessionStarted = (timestamp) => {
         if (sessionStarted) return;
         sessionStarted = true;
         sessionStartTime = timestamp;
-        lastTextChangeTime = 0;
+        lastInputTime = timestamp;
+        lastWordCount = countWords(textarea.value);
       };
 
       const relativeTime = () => (sessionStarted ? performance.now() - sessionStartTime : 0);
@@ -296,25 +307,24 @@
       };
 
       const handlePauseCheck = (timestamp) => {
-        if (!sessionStarted) return;
-        if (!lastTextChangeTime) {
-          lastTextChangeTime = timestamp;
-          return;
-        }
-        const delta = timestamp - lastTextChangeTime;
+        if (!sessionStarted || !lastInputTime) return;
+        const delta = timestamp - lastInputTime;
         if (delta >= 2000) {
           logEvent({
             type: 'pause',
             data: { durationMs: Math.round(delta) },
           });
         }
-        lastTextChangeTime = timestamp;
+        lastInputTime = timestamp;
       };
 
       const handleKeydown = (event) => {
         const isCharacter = event.key.length === 1 && !event.ctrlKey && !event.metaKey;
         const isTrackedKey = isCharacter || allowedKeys.has(event.key);
         const isShortcut = (event.ctrlKey || event.metaKey) && shortcutKeys.has(event.key.toLowerCase());
+        if (!sessionStarted && isCharacter) {
+          ensureSessionStarted(performance.now());
+        }
         if (!(isTrackedKey || isShortcut)) return;
 
         if (!sessionStarted) return;
@@ -332,24 +342,8 @@
           },
         });
 
-        if (isShortcut) {
-          const key = event.key.toLowerCase();
-          const actionMap = {
-            c: 'copy',
-            x: 'cut',
-            v: 'paste',
-            z: 'undo',
-            y: 'redo',
-            a: 'select_all',
-          };
-          const action = actionMap[key];
-          if (action) {
-            logEvent({
-              type: 'shortcut',
-              data: { action },
-            });
-          }
-        }
+        if (event.key === 'Backspace') backspaceCount += 1;
+        if (event.key === 'Delete') deleteCount += 1;
       };
 
       const handleInput = (event) => {
@@ -364,21 +358,11 @@
         const added = Math.max(currentValue.length - previousValue.length, 0);
         const removed = Math.max(previousValue.length - currentValue.length, 0);
 
-        if (!sessionStarted) {
-          if (added > 0 || event.inputType === 'insertLineBreak' || event.inputType === 'insertParagraph') {
-            ensureSessionStarted(nowTime);
-          } else {
-            lastValue = currentValue;
-            return;
-          }
+        if (!sessionStarted && added > 0) {
+          ensureSessionStarted(nowTime);
         }
 
         if (!sessionStarted) {
-          lastValue = currentValue;
-          return;
-        }
-
-        if (added === 0 && removed === 0) {
           lastValue = currentValue;
           return;
         }
@@ -394,25 +378,13 @@
           },
         });
 
-        totalAddedChars += added;
-        totalDeletedChars += removed;
-
         if (event.inputType === 'insertFromPaste') {
           pasteEvents += 1;
           pastedCharacters += added;
-        } else if (added > 0) {
-          charsTypedExcludingPaste += added;
-          const minuteIndex = Math.floor((nowTime - sessionStartTime) / 60000);
-          const prevChars = minuteBuckets.get(minuteIndex) || 0;
-          minuteBuckets.set(minuteIndex, prevChars + added);
         }
 
-        if (event.inputType === 'deleteContentBackward' && removed > 0) {
-          backspaceCount += 1;
-        }
-        if (event.inputType === 'deleteContentForward' && removed > 0) {
-          deleteCount += 1;
-        }
+        const currentWords = countWords(currentValue);
+        trackWords(currentWords, nowTime - sessionStartTime);
 
         lastValue = currentValue;
       };
@@ -426,12 +398,11 @@
         const totalMinutes = Math.max(Math.ceil(durationMs / 60000), 1);
         const result = [];
         for (let i = 0; i < totalMinutes; i += 1) {
-          const charsTyped = minuteBuckets.get(i) || 0;
+          const words = minuteBuckets.get(i) || 0;
           const minuteStart = i * 60000;
           const minuteEnd = Math.min((i + 1) * 60000, durationMs);
           const minuteDuration = Math.max(minuteEnd - minuteStart, 1);
-          const wordsFromChars = charsTyped / 5;
-          const wpm = wordsFromChars / (minuteDuration / 60000);
+          const wpm = (words / (minuteDuration / 60000));
           result.push(Number(wpm.toFixed(2)));
         }
         return result;
@@ -441,7 +412,9 @@
         const nowTime = performance.now();
         const durationMs = sessionStarted ? nowTime - sessionStartTime : 0;
         const totalWords = countWords(textarea.value);
-        const totalCharsTyped = totalAddedChars;
+        const totalCharsTyped = eventLog
+          .filter((evt) => evt.type === 'input')
+          .reduce((acc, evt) => acc + (evt.data.added || 0), 0);
         const totalPauses = eventLog.filter((evt) => evt.type === 'pause');
         const pauseDurations = totalPauses.map((p) => p.data.durationMs || 0);
         const totalPausedTime = pauseDurations.reduce((a, b) => a + b, 0);
@@ -452,15 +425,13 @@
         return {
           durationMs,
           totalCharsTyped,
-          charsTypedExcludingPaste,
-          deletedCharacters: totalDeletedChars,
           totalWords,
           finalCharacters: textarea.value.length,
           overallWpm: durationMs > 0 ? Number((totalWords / (durationMs / 60000)).toFixed(2)) : 0,
           minuteByMinute,
           backspaceCount,
           deleteCount,
-          correctionRatio: charsTypedExcludingPaste > 0 ? Number(((totalDeletedChars / charsTypedExcludingPaste) * 100).toFixed(2)) : 0,
+          correctionRatio: totalCharsTyped > 0 ? Number(((totalCorrections / totalCharsTyped) * 100).toFixed(2)) : 0,
           pasteEvents,
           pastedCharacters,
           pastePercentage: totalCharsTyped > 0 ? Number(((pastedCharacters / totalCharsTyped) * 100).toFixed(2)) : 0,
@@ -468,6 +439,7 @@
           averagePause: Number(averagePause.toFixed(2)),
           longestPause,
           totalPausedTime,
+          eventLog,
         };
       };
 
@@ -545,15 +517,8 @@
       doc.setFontSize(12);
       let reportY = margin + lineHeight * 1.5;
 
-      const formatDuration = (ms) => {
-        const totalSeconds = Math.floor(ms / 1000);
-        const minutes = Math.floor(totalSeconds / 60);
-        const seconds = totalSeconds % 60;
-        return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-      };
-
       const linesReport = [
-        `Total time: ${formatDuration(metrics.durationMs)}`,
+        `Total time: ${Math.round(metrics.durationMs)} ms`,
         `Total words: ${metrics.totalWords}`,
         `Overall WPM: ${metrics.overallWpm}`,
         `Backspace count: ${metrics.backspaceCount}`,
@@ -568,37 +533,24 @@
         `Total paused time: ${metrics.totalPausedTime} ms`,
       ];
 
-      const pageHeight = doc.internal.pageSize.getHeight();
-
       linesReport.forEach((line) => {
-        if (reportY > pageHeight - margin) {
-          doc.addPage();
-          reportY = margin;
-        }
         doc.text(line, margin, reportY);
         reportY += lineHeight;
       });
 
       reportY += lineHeight * 0.5;
-      const renderTableRow = (text) => {
-        if (reportY > pageHeight - margin) {
-          doc.addPage();
-          reportY = margin;
-        }
-        doc.text(text, margin, reportY);
-        reportY += lineHeight;
-      };
-
       doc.setFont('helvetica', 'bold');
       doc.text('Minute-by-minute WPM', margin, reportY);
       doc.setFont('helvetica', 'normal');
       reportY += lineHeight;
 
       const tableHeaders = ['Minute', 'WPM'];
-      renderTableRow(`${tableHeaders[0]} | ${tableHeaders[1]}`);
+      doc.text(`${tableHeaders[0]} | ${tableHeaders[1]}`, margin, reportY);
+      reportY += lineHeight;
 
       metrics.minuteByMinute.forEach((value, index) => {
-        renderTableRow(`${index + 1} | ${value}`);
+        doc.text(`${index + 1} | ${value}`, margin, reportY);
+        reportY += lineHeight;
       });
 
       doc.save('extensive-writing.pdf');
