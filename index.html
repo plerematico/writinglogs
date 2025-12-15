@@ -11,8 +11,6 @@
     rel="stylesheet"
   />
   <link rel="stylesheet" href="styles.css" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html-docx-js/0.1.1/html-docx.min.js"></script>
 </head>
 <body spellcheck="false">
   <header class="title-bar">
@@ -29,41 +27,30 @@
           autocapitalize="off"
           spellcheck="false"
         />
-        <div class="title-meta">Saved just now</div>
+        <div class="title-meta">Last edit was seconds ago</div>
+      </div>
+      <div class="title-actions">
+        <button class="pill-btn">Move</button>
+        <button class="pill-btn">Star</button>
+        <button class="pill-btn">History</button>
       </div>
     </div>
-    <div class="title-actions">
-      <button class="pill-btn" id="new-doc">New</button>
-      <button class="pill-btn" id="download-docx">Download DOCX</button>
-      <button class="pill-btn" id="download-pdf">Download PDF</button>
+    <div class="title-right">
+      <button class="chip">Comments</button>
+      <button class="chip">Share</button>
+      <div class="avatar" aria-hidden="true">A</div>
     </div>
   </header>
 
   <nav class="menu-bar" aria-label="Document menus">
-    <div class="menu">
-      <button class="menu-trigger" data-menu="file">File</button>
-      <div class="menu-panel" id="menu-file">
-        <button data-action="new-doc">New document</button>
-        <button data-action="download-docx">Download as DOCX</button>
-        <button data-action="download-pdf">Download as PDF</button>
-      </div>
-    </div>
-    <div class="menu">
-      <button class="menu-trigger" data-menu="edit">Edit</button>
-      <div class="menu-panel" id="menu-edit">
-        <button data-command="undo">Undo</button>
-        <button data-command="redo">Redo</button>
-        <button data-command="selectAll">Select all</button>
-      </div>
-    </div>
-    <div class="menu">
-      <button class="menu-trigger" data-menu="view">View</button>
-      <div class="menu-panel" id="menu-view">
-        <button data-action="zoom-90">Zoom 90%</button>
-        <button data-action="zoom-100">Zoom 100%</button>
-        <button data-action="zoom-110">Zoom 110%</button>
-      </div>
-    </div>
+    <button>File</button>
+    <button>Edit</button>
+    <button>View</button>
+    <button>Insert</button>
+    <button>Format</button>
+    <button>Tools</button>
+    <button>Extensions</button>
+    <button>Help</button>
   </nav>
 
   <section class="toolbar" aria-label="Formatting toolbar">
@@ -94,22 +81,21 @@
   </section>
 
   <main class="workspace">
-    <div class="page-stack" id="page-stack">
-      <div class="page" data-page="1">
-        <div class="page-meta">Page 1 — 👁️ Editing</div>
-        <div
-          class="editor"
-          contenteditable="true"
-          spellcheck="false"
-          autocorrect="off"
-          autocapitalize="none"
-          data-enable-grammarly="false"
-          data-gramm_editor="false"
-          aria-label="Document body"
-        >
-          <p>Welcome to your distraction-free doc. Start typing to see formatting controls work just like Google Docs—without grammar or spelling checkers.</p>
-          <p>Try bold, italics, bullet lists, or alignment tweaks from the toolbar above.</p>
-        </div>
+    <div class="page" id="page">
+      <div class="page-meta">👁️ Editing</div>
+      <div
+        id="editor"
+        class="editor"
+        contenteditable="true"
+        spellcheck="false"
+        autocorrect="off"
+        autocapitalize="none"
+        data-enable-grammarly="false"
+        data-gramm_editor="false"
+        aria-label="Document body"
+      >
+        <p>Welcome to your distraction-free doc. Start typing to see formatting controls work just like Google Docs—without grammar or spelling checkers.</p>
+        <p>Try bold, italics, bullet lists, or alignment tweaks from the toolbar above.</p>
       </div>
     </div>
   </main>

@@ -76,10 +76,11 @@ input {
 
 .title-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
 
-.pill-btn {
+.pill-btn,
+.chip {
   border: 1px solid var(--border);
   background: white;
   padding: 6px 12px;
@@ -88,9 +89,26 @@ input {
   color: var(--subtle);
 }
 
-.pill-btn:hover {
+.pill-btn:hover,
+.chip:hover {
   border-color: var(--blue);
   color: var(--text);
+}
+
+.title-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #fbbc04;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
 }
 
 .menu-bar {
@@ -104,11 +122,7 @@ input {
   z-index: 9;
 }
 
-.menu {
-  position: relative;
-}
-
-.menu-bar .menu-trigger {
+.menu-bar button {
   border: none;
   background: transparent;
   padding: 6px 8px;
@@ -117,39 +131,9 @@ input {
   color: var(--subtle);
 }
 
-.menu-bar .menu-trigger:hover,
-.menu-bar .menu-trigger[aria-expanded='true'] {
+.menu-bar button:hover {
   background: #e8f0fe;
   color: var(--text);
-}
-
-.menu-panel {
-  display: none;
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  min-width: 180px;
-  background: white;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  box-shadow: var(--shadow);
-  padding: 6px;
-  z-index: 20;
-}
-
-.menu-panel button {
-  width: 100%;
-  text-align: left;
-  border: none;
-  background: transparent;
-  padding: 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  color: var(--text);
-}
-
-.menu-panel button:hover {
-  background: #e8f0fe;
 }
 
 .toolbar {
@@ -195,18 +179,12 @@ input {
 .workspace {
   display: grid;
   place-items: flex-start center;
-  padding: 32px 0 120px;
-}
-
-.page-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 28px;
+  padding: 32px 0 80px;
 }
 
 .page {
-  width: 794px;
-  height: 1123px;
+  width: 816px;
+  min-height: 1056px;
   background: var(--page);
   border: 1px solid #e0e0e0;
   border-radius: 8px;
@@ -214,8 +192,6 @@ input {
   padding: 48px;
   margin: 0 auto;
   transform-origin: top center;
-  display: flex;
-  flex-direction: column;
 }
 
 .page-meta {
@@ -229,9 +205,7 @@ input {
   font-size: 16px;
   line-height: 1.6;
   outline: none;
-  flex: 1;
-  max-height: 100%;
-  overflow: hidden;
+  min-height: 900px;
   caret-color: var(--blue);
 }
 
@@ -271,19 +245,13 @@ input {
 
   .page {
     width: 100%;
-    height: auto;
-    min-height: 80vh;
+    min-height: 60vh;
     padding: 32px;
   }
 
   .toolbar {
     top: 120px;
   }
-}
-
-@page {
-  size: A4;
-  margin: 0;
 }
 
 .pulse {
