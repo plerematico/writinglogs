@@ -609,6 +609,7 @@
       const margin = 40;
       const lineHeight = 18;
       const maxWidth = doc.internal.pageSize.getWidth() - margin * 2;
+      const pageHeight = doc.internal.pageSize.getHeight();
 
       const text = textarea.value || '';
       const wordTotal = countWords(text);
@@ -683,8 +684,6 @@
         `Longest pause: ${formatSeconds(metrics.longestPause)}`,
         `Total paused time: ${formatSeconds(metrics.totalPausedTime)}`,
       ];
-
-      const pageHeight = doc.internal.pageSize.getHeight();
 
       linesReport.forEach((line) => {
         if (reportY > pageHeight - margin) {
