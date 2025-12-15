@@ -67,23 +67,12 @@ const placeCaretAtEnd = (element) => {
 };
 
 const setZoom = (factor) => {
-  document.documentElement.style.setProperty('--page-scale', factor);
   Array.from(document.querySelectorAll('.page')).forEach((page) => {
+    page.style.transform = `scale(${factor})`;
     page.style.width = `${A4_WIDTH}px`;
     page.style.height = `${A4_HEIGHT}px`;
   });
   zoom.value = String(factor);
-};
-
-const ensureCaretVisible = () => {
-  const selection = window.getSelection();
-  if (!selection || selection.rangeCount === 0) return;
-  const range = selection.getRangeAt(0).cloneRange();
-  const rects = range.getClientRects();
-  if (!rects.length) return;
-  const rect = rects[0];
-  const y = rect.top + window.scrollY - 120;
-  window.scrollTo({ top: y, behavior: 'smooth' });
 };
 
 const createPage = (initialHTML = '<p><br /></p>') => {
@@ -102,7 +91,6 @@ const createPage = (initialHTML = '<p><br /></p>') => {
 
   disableCheckers([document.body, titleInput, editor]);
   bindEditor(editor);
-  updateWordCount();
   return editor;
 };
 
@@ -158,7 +146,6 @@ const handleEditorInput = (event) => {
   flashSaved('Saved');
   updateWordCount();
   if (finalEditor !== editor) placeCaretAtEnd(finalEditor);
-  ensureCaretVisible();
 };
 
 const isNearBottom = (editor) => {
@@ -177,7 +164,6 @@ const handleEditorKeydown = (event) => {
     event.preventDefault();
     const newEditor = createPage();
     placeCaretAtEnd(newEditor);
-    ensureCaretVisible();
     updateWordCount();
     return;
   }
@@ -185,16 +171,12 @@ const handleEditorKeydown = (event) => {
     event.preventDefault();
     const newEditor = createPage('<p><br /></p>');
     placeCaretAtEnd(newEditor);
-    ensureCaretVisible();
   }
 };
 
 const bindEditor = (editor) => {
   editor.addEventListener('input', handleEditorInput);
-  editor.addEventListener('keyup', () => {
-    updateWordCount();
-    ensureCaretVisible();
-  });
+  editor.addEventListener('keyup', updateWordCount);
   editor.addEventListener('keydown', handleEditorKeydown);
 };
 
@@ -243,10 +225,6 @@ const resetDocument = () => {
 };
 
 const exportDocx = () => {
-  if (!window.htmlDocx || !window.htmlDocx.asBlob) {
-    alert('DOCX export is unavailable in this environment.');
-    return;
-  }
   const content = getEditors()
     .map((editor) => `<div style="page-break-after: always;">${editor.innerHTML}</div>`)
     .join('');
@@ -263,10 +241,6 @@ const exportDocx = () => {
 };
 
 const exportPdf = async () => {
-  if (!window.jspdf || !window.jspdf.jsPDF) {
-    alert('PDF export is unavailable in this environment.');
-    return;
-  }
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'px', format: [A4_WIDTH, A4_HEIGHT] });
   const editors = getEditors();
