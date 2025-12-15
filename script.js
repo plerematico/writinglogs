@@ -1,88 +1,18 @@
-const wordCount = document.getElementById('word-count');
-const saveStatus = document.getElementById('save-status');
-const zoom = document.getElementById('page-zoom');
-const titleInput = document.getElementById('doc-title');
-const pageStack = document.getElementById('page-stack');
-const newDocBtn = document.getElementById('new-doc');
-const downloadDocxBtn = document.getElementById('download-docx');
-const downloadPdfBtn = document.getElementById('download-pdf');
-
 const A4_WIDTH = 794;
 const A4_HEIGHT = 1123;
 
-function getEditors() {
-  return Array.from(document.querySelectorAll('.editor'));
-}
+let wordCount;
+let saveStatus;
+let zoom;
+let titleInput;
+let pageStack;
+let newDocBtn;
+let downloadDocxBtn;
+let downloadPdfBtn;
 
-function activeEditor() {
-  const selection = document.getSelection();
-  const node = selection && selection.anchorNode ? selection.anchorNode : null;
-  if (node) {
-    const target = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
-    const editor = target ? target.closest('.editor') : null;
-    if (editor) return editor;
-  }
-  return getEditors()[0];
-}
+const getEditors = () => Array.from(document.querySelectorAll('.editor'));
 
-function updateWordCount() {
-  const text = getEditors()
-    .map((ed) => ed.innerText.trim())
-    .filter(Boolean)
-    .join(' ');
-  const count = text ? text.split(/\s+/).length : 0;
-  wordCount.textContent = `${count} word${count === 1 ? '' : 's'}`;
-}
-
-function flashSaved(message = 'Saved just now') {
-  saveStatus.textContent = message;
-  saveStatus.classList.add('pulse');
-  setTimeout(() => saveStatus.classList.remove('pulse'), 800);
-}
-
-function exec(command) {
-  const editor = activeEditor();
-  document.execCommand(command, false, null);
-  editor.focus();
-  flashSaved();
-  updateWordCount();
-  document.querySelectorAll('.menu-panel').forEach((panel) => (panel.style.display = 'none'));
-  document.querySelectorAll('.menu-trigger').forEach((btn) => btn.setAttribute('aria-expanded', 'false'));
-}
-
-function bindToolbar() {
-  document.querySelectorAll('[data-command]').forEach((btn) => {
-    btn.addEventListener('click', () => exec(btn.dataset.command));
-  });
-}
-
-function setZoom(factor) {
-  Array.from(document.querySelectorAll('.page')).forEach((page) => {
-    page.style.transform = `scale(${factor})`;
-    page.style.width = `${A4_WIDTH / factor}px`;
-    page.style.height = `${A4_HEIGHT / factor}px`;
-  });
-  zoom.value = String(factor);
-}
-
-function bindZoom() {
-  zoom.addEventListener('change', (event) => {
-    const factor = Number(event.target.value);
-    setZoom(factor);
-  });
-}
-
-function bindTitle() {
-  let timeout;
-  titleInput.addEventListener('input', () => {
-    clearTimeout(timeout);
-    document.title = titleInput.value || 'Untitled document';
-    saveStatus.textContent = 'Saving…';
-    timeout = setTimeout(() => flashSaved('Saved just now'), 600);
-  });
-}
-
-function disableCheckers(nodeList) {
+const disableCheckers = (nodes) => {
   const attributes = [
     ['spellcheck', 'false'],
     ['autocorrect', 'off'],
@@ -92,38 +22,79 @@ function disableCheckers(nodeList) {
     ['data-gramm', 'false'],
     ['data-lt-active', 'false'],
   ];
-  nodeList.forEach((node) => {
+  nodes.forEach((node) => {
     attributes.forEach(([attr, value]) => node.setAttribute(attr, value));
-    if (Object.prototype.hasOwnProperty.call(node, 'spellcheck')) node.spellcheck = false;
-    if (Object.prototype.hasOwnProperty.call(node, 'autocorrect')) node.autocorrect = 'off';
-    if (Object.prototype.hasOwnProperty.call(node, 'autocapitalize')) node.autocapitalize = 'off';
+    if ('spellcheck' in node) node.spellcheck = false;
+    if ('autocorrect' in node) node.autocorrect = 'off';
+    if ('autocapitalize' in node) node.autocapitalize = 'off';
   });
-}
+};
 
-function createPage(initialHTML = '<p><br /></p>') {
+const activeEditor = () => {
+  const selection = document.getSelection();
+  const anchor = selection && selection.anchorNode;
+  if (anchor) {
+    const target = anchor.nodeType === Node.TEXT_NODE ? anchor.parentElement : anchor;
+    const editor = target ? target.closest('.editor') : null;
+    if (editor) return editor;
+  }
+  return getEditors()[getEditors().length - 1];
+};
+
+const updateWordCount = () => {
+  const text = getEditors()
+    .map((ed) => ed.innerText.trim())
+    .filter(Boolean)
+    .join(' ');
+  const count = text ? text.split(/\s+/).length : 0;
+  wordCount.textContent = `${count} word${count === 1 ? '' : 's'}`;
+};
+
+const flashSaved = (message = 'Saved just now') => {
+  saveStatus.textContent = message;
+  saveStatus.classList.add('pulse');
+  setTimeout(() => saveStatus.classList.remove('pulse'), 800);
+};
+
+const placeCaretAtEnd = (element) => {
+  const range = document.createRange();
+  const selection = window.getSelection();
+  range.selectNodeContents(element);
+  range.collapse(false);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  element.focus();
+};
+
+const setZoom = (factor) => {
+  Array.from(document.querySelectorAll('.page')).forEach((page) => {
+    page.style.transform = `scale(${factor})`;
+    page.style.width = `${A4_WIDTH}px`;
+    page.style.height = `${A4_HEIGHT}px`;
+  });
+  zoom.value = String(factor);
+};
+
+const createPage = (initialHTML = '<p><br /></p>') => {
   const pageCount = document.querySelectorAll('.page').length + 1;
   const page = document.createElement('div');
   page.className = 'page';
   page.dataset.page = pageCount;
-
-  const meta = document.createElement('div');
-  meta.className = 'page-meta';
-  meta.textContent = `Page ${pageCount} — 👁️ Editing`;
 
   const editor = document.createElement('div');
   editor.className = 'editor';
   editor.contentEditable = 'true';
   editor.innerHTML = initialHTML;
 
-  page.append(meta, editor);
+  page.append(editor);
   pageStack.append(page);
 
-  bindEditor(editor);
   disableCheckers([document.body, titleInput, editor]);
+  bindEditor(editor);
   return editor;
-}
+};
 
-function trimExtraPages() {
+const trimExtraPages = () => {
   const pages = Array.from(document.querySelectorAll('.page'));
   for (let i = pages.length - 1; i > 0; i -= 1) {
     const editor = pages[i].querySelector('.editor');
@@ -135,68 +106,141 @@ function trimExtraPages() {
     }
   }
   Array.from(document.querySelectorAll('.page')).forEach((page, index) => {
-    const meta = page.querySelector('.page-meta');
-    meta.textContent = `Page ${index + 1} — 👁️ Editing`;
     page.dataset.page = index + 1;
   });
-}
+};
 
-function splitOverflow(editor) {
-  const maxHeight = editor.clientHeight;
-  while (editor.scrollHeight > maxHeight + 2) {
-    const lastNode = editor.lastChild;
-    if (!lastNode) break;
-    const newEditor = createPage('');
-    newEditor.prepend(lastNode);
-    editor = newEditor;
+const ensurePlaceholder = (editor) => {
+  if (!editor.innerText.trim()) {
+    editor.innerHTML = '<p><br /></p>';
   }
-}
+};
 
-function handleEditorInput(event) {
+const splitOverflow = (editor) => {
+  const maxHeight = editor.clientHeight;
+  let current = editor;
+  while (current.scrollHeight > maxHeight + 2) {
+    if (current.childNodes.length <= 1) {
+      const loneNode = current.firstChild;
+      if (!loneNode) break;
+      const newEditor = createPage();
+      newEditor.appendChild(loneNode);
+      ensurePlaceholder(current);
+      current = newEditor;
+      break;
+    }
+    const lastNode = current.lastChild;
+    if (!lastNode) break;
+    const newEditor = createPage();
+    newEditor.insertBefore(lastNode, newEditor.firstChild);
+    ensurePlaceholder(current);
+    current = newEditor;
+  }
+  return current;
+};
+
+const handleEditorInput = (event) => {
   const editor = event.currentTarget;
-  splitOverflow(editor);
+  const finalEditor = splitOverflow(editor);
   trimExtraPages();
   flashSaved('Saved');
   updateWordCount();
-}
+  if (finalEditor !== editor) placeCaretAtEnd(finalEditor);
+};
 
-function handleEditorKeydown(event) {
+const isNearBottom = (editor) => {
+  const selection = window.getSelection();
+  if (!selection.rangeCount) return false;
+  const range = selection.getRangeAt(0).cloneRange();
+  range.collapse(true);
+  const rect = range.getBoundingClientRect();
+  const hostRect = editor.getBoundingClientRect();
+  return rect.bottom >= hostRect.bottom - 36;
+};
+
+const handleEditorKeydown = (event) => {
+  const editor = event.currentTarget;
+  if (!event.ctrlKey && event.key === 'Enter' && isNearBottom(editor)) {
+    event.preventDefault();
+    const newEditor = createPage();
+    placeCaretAtEnd(newEditor);
+    updateWordCount();
+    return;
+  }
   if (event.ctrlKey && event.key === 'Enter') {
     event.preventDefault();
-    const newEditor = createPage('');
-    newEditor.focus();
+    const newEditor = createPage('<p><br /></p>');
+    placeCaretAtEnd(newEditor);
   }
-}
+};
 
-function bindEditor(editor) {
+const bindEditor = (editor) => {
   editor.addEventListener('input', handleEditorInput);
+  editor.addEventListener('keyup', updateWordCount);
   editor.addEventListener('keydown', handleEditorKeydown);
-}
+};
 
-function resetDocument() {
+const exec = (command) => {
+  const editor = activeEditor();
+  document.execCommand(command, false, null);
+  editor.focus();
+  flashSaved();
+  updateWordCount();
+  document.querySelectorAll('.menu-panel').forEach((panel) => (panel.style.display = 'none'));
+  document.querySelectorAll('.menu-trigger').forEach((btn) => btn.setAttribute('aria-expanded', 'false'));
+};
+
+const bindToolbar = () => {
+  document.querySelectorAll('[data-command]').forEach((btn) => {
+    btn.addEventListener('click', () => exec(btn.dataset.command));
+  });
+};
+
+const bindZoom = () => {
+  zoom.addEventListener('change', (event) => {
+    const factor = Number(event.target.value);
+    setZoom(factor);
+  });
+};
+
+const bindTitle = () => {
+  let timeout;
+  titleInput.addEventListener('input', () => {
+    clearTimeout(timeout);
+    document.title = titleInput.value || 'Untitled document';
+    saveStatus.textContent = 'Saving…';
+    timeout = setTimeout(() => flashSaved('Saved just now'), 600);
+  });
+};
+
+const resetDocument = () => {
   pageStack.innerHTML = '';
-  createPage('');
+  createPage();
   titleInput.value = 'Untitled document';
   document.title = titleInput.value;
   setZoom(1);
   updateWordCount();
   flashSaved('Cleared');
-  activeEditor().focus();
-}
+  placeCaretAtEnd(activeEditor());
+};
 
-function exportDocx() {
+const exportDocx = () => {
   const content = getEditors()
     .map((editor) => `<div style="page-break-after: always;">${editor.innerHTML}</div>`)
     .join('');
-  const converted = window.htmlDocx.asBlob(`<html><head><meta charset="utf-8"></head><body>${content}</body></html>`);
+  const converted = window.htmlDocx.asBlob(
+    `<html><head><meta charset="utf-8"></head><body>${content}</body></html>`
+  );
   const a = document.createElement('a');
   a.href = URL.createObjectURL(converted);
   a.download = `${titleInput.value || 'document'}.docx`;
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
   URL.revokeObjectURL(a.href);
-}
+};
 
-async function exportPdf() {
+const exportPdf = async () => {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'px', format: [A4_WIDTH, A4_HEIGHT] });
   const editors = getEditors();
@@ -214,16 +258,16 @@ async function exportPdf() {
   }
 
   doc.save(`${titleInput.value || 'document'}.pdf`);
-}
+};
 
-function bindMenus() {
+const bindMenus = () => {
   const menuButtons = document.querySelectorAll('.menu-trigger');
   const panels = document.querySelectorAll('.menu-panel');
 
-  function closeMenus() {
+  const closeMenus = () => {
     panels.forEach((panel) => (panel.style.display = 'none'));
     menuButtons.forEach((btn) => btn.setAttribute('aria-expanded', 'false'));
-  }
+  };
 
   menuButtons.forEach((button) => {
     button.addEventListener('click', () => {
@@ -252,15 +296,24 @@ function bindMenus() {
       closeMenus();
     });
   });
-}
+};
 
-function bindActions() {
+const bindActions = () => {
   newDocBtn.addEventListener('click', resetDocument);
   downloadDocxBtn.addEventListener('click', exportDocx);
   downloadPdfBtn.addEventListener('click', exportPdf);
-}
+};
 
-function init() {
+const init = () => {
+  wordCount = document.getElementById('word-count');
+  saveStatus = document.getElementById('save-status');
+  zoom = document.getElementById('page-zoom');
+  titleInput = document.getElementById('doc-title');
+  pageStack = document.getElementById('page-stack');
+  newDocBtn = document.getElementById('new-doc');
+  downloadDocxBtn = document.getElementById('download-docx');
+  downloadPdfBtn = document.getElementById('download-pdf');
+
   disableCheckers([document.documentElement, document.body, titleInput, ...getEditors()]);
   bindToolbar();
   bindZoom();
@@ -270,7 +323,12 @@ function init() {
   getEditors().forEach(bindEditor);
   updateWordCount();
   setZoom(1);
-  activeEditor().focus();
-}
+  placeCaretAtEnd(activeEditor());
+  setInterval(updateWordCount, 1000);
+};
 
-init();
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
