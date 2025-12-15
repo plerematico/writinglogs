@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Docs Style Writer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body spellcheck="false">
+  <header class="title-bar">
+    <div class="title-left">
+      <div class="app-icon" aria-hidden="true">W</div>
+      <div class="title-group">
+        <input
+          id="doc-title"
+          class="doc-title"
+          type="text"
+          aria-label="Document title"
+          value="Untitled document"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
+        />
+        <div class="title-meta">Last edit was seconds ago</div>
+      </div>
+      <div class="title-actions">
+        <button class="pill-btn">Move</button>
+        <button class="pill-btn">Star</button>
+        <button class="pill-btn">History</button>
+      </div>
+    </div>
+    <div class="title-right">
+      <button class="chip">Comments</button>
+      <button class="chip">Share</button>
+      <div class="avatar" aria-hidden="true">A</div>
+    </div>
+  </header>
+
+  <nav class="menu-bar" aria-label="Document menus">
+    <button>File</button>
+    <button>Edit</button>
+    <button>View</button>
+    <button>Insert</button>
+    <button>Format</button>
+    <button>Tools</button>
+    <button>Extensions</button>
+    <button>Help</button>
+  </nav>
+
+  <section class="toolbar" aria-label="Formatting toolbar">
+    <div class="toolbar-group">
+      <button data-command="undo" title="Undo">↺</button>
+      <button data-command="redo" title="Redo">↻</button>
+    </div>
+    <div class="toolbar-group">
+      <button data-command="bold" title="Bold">B</button>
+      <button data-command="italic" title="Italic">I</button>
+      <button data-command="underline" title="Underline">U</button>
+      <button data-command="insertUnorderedList" title="Bulleted list">•</button>
+      <button data-command="insertOrderedList" title="Numbered list">1.</button>
+    </div>
+    <div class="toolbar-group">
+      <button data-command="justifyLeft" title="Align left">⬅</button>
+      <button data-command="justifyCenter" title="Align center">↔</button>
+      <button data-command="justifyRight" title="Align right">➡</button>
+    </div>
+    <div class="toolbar-group">
+      <label for="page-zoom">Zoom</label>
+      <select id="page-zoom" aria-label="Page zoom">
+        <option value="0.9">90%</option>
+        <option value="1" selected>100%</option>
+        <option value="1.1">110%</option>
+      </select>
+    </div>
+  </section>
+
+  <main class="workspace">
+    <div class="page" id="page">
+      <div class="page-meta">👁️ Editing</div>
+      <div
+        id="editor"
+        class="editor"
+        contenteditable="true"
+        spellcheck="false"
+        autocorrect="off"
+        autocapitalize="none"
+        data-enable-grammarly="false"
+        data-gramm_editor="false"
+        aria-label="Document body"
+      >
+        <p>Welcome to your distraction-free doc. Start typing to see formatting controls work just like Google Docs—without grammar or spelling checkers.</p>
+        <p>Try bold, italics, bullet lists, or alignment tweaks from the toolbar above.</p>
+      </div>
+    </div>
+  </main>
+
+  <footer class="status-bar">
+    <div id="save-status">Saved just now</div>
+    <div class="status-divider"></div>
+    <div id="word-count">0 words</div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
