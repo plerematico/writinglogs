@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Extensive Writing</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f8fafc;
+      --panel: #ffffff;
+      --border: #d7dde5;
+      --text: #0f172a;
+      --muted: #475569;
+      --accent: #2563eb;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      padding: 48px 20px 64px;
+    }
+
+    .app {
+      width: min(900px, 100%);
+    }
+
+    h1 {
+      font-weight: 700;
+      margin: 0 0 12px;
+      text-align: center;
+      letter-spacing: -0.01em;
+    }
+
+    .instructions {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 18px;
+      margin-bottom: 16px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+    }
+
+    .instructions ol {
+      margin: 0;
+      padding-left: 20px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .writing-area {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 10px 32px rgba(15, 23, 42, 0.06);
+    }
+
+    .writing-label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 280px;
+      resize: none;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      font: 16px/1.6 "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: var(--text);
+      background: #fff;
+      outline: none;
+      transition: border-color 150ms ease, box-shadow 150ms ease;
+    }
+
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    }
+
+    .footer-panel {
+      margin-top: 14px;
+      display: flex;
+      gap: 12px;
+      align-items: stretch;
+      flex-wrap: wrap;
+    }
+
+    .counter-box {
+      flex: 1 1 260px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 6px 18px rgba(15, 23, 42, 0.05);
+      min-height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-weight: 600;
+    }
+
+    .counter-label {
+      color: var(--muted);
+      font-weight: 500;
+      margin-right: 8px;
+    }
+
+    .download-btn {
+      flex: 0 0 auto;
+      align-self: stretch;
+      padding: 0 18px;
+      border: 1px solid transparent;
+      border-radius: 12px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 700;
+      font-size: 15px;
+      cursor: pointer;
+      box-shadow: 0 10px 24px rgba(37, 99, 235, 0.25);
+      transition: transform 120ms ease, box-shadow 150ms ease, background 120ms ease;
+    }
+
+    .download-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 14px 30px rgba(37, 99, 235, 0.28);
+      background: #1d4ed8;
+    }
+
+    .download-btn:active {
+      transform: translateY(0);
+      box-shadow: 0 8px 20px rgba(37, 99, 235, 0.25);
+    }
+
+    @media (max-width: 640px) {
+      body {
+        padding: 28px 14px 48px;
+      }
+
+      .footer-panel {
+        flex-direction: column;
+      }
+
+      .download-btn {
+        width: 100%;
+        text-align: center;
+        padding: 14px;
+      }
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+</head>
+<body>
+  <div class="app">
+    <h1>Extensive Writing</h1>
+    <div class="instructions">
+      <ol>
+        <li>Write here</li>
+        <li>Don't worry about grammar or spelling</li>
+      </ol>
+    </div>
+
+    <div class="writing-area">
+      <label class="writing-label" for="writer">Start writing</label>
+      <textarea
+        id="writer"
+        aria-label="Writing area"
+        spellcheck="false"
+        autocorrect="off"
+        autocapitalize="none"
+        data-gramm="false"
+        data-gramm_editor="false"
+        data-enable-grammarly="false"
+        data-lt-active="false"
+        placeholder="Your thoughts go here..."
+      ></textarea>
+
+      <div class="footer-panel">
+        <div class="counter-box" aria-live="polite">
+          <span class="counter-label">Words</span>
+          <span id="word-count">0</span>
+        </div>
+        <button class="download-btn" id="download">Download</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const textarea = document.getElementById('writer');
+    const wordCountEl = document.getElementById('word-count');
+    const downloadBtn = document.getElementById('download');
+
+    const disableCheckers = (node) => {
+      if (!node) return;
+      node.setAttribute('spellcheck', 'false');
+      node.setAttribute('autocorrect', 'off');
+      node.setAttribute('autocapitalize', 'none');
+      node.setAttribute('data-gramm', 'false');
+      node.setAttribute('data-gramm_editor', 'false');
+      node.setAttribute('data-enable-grammarly', 'false');
+      node.setAttribute('data-lt-active', 'false');
+    };
+
+    const autoResize = () => {
+      textarea.style.height = 'auto';
+      textarea.style.height = textarea.scrollHeight + 'px';
+    };
+
+    const countWords = (text) => {
+      const words = text
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+      return words.length;
+    };
+
+    const updateCount = () => {
+      const total = countWords(textarea.value);
+      wordCountEl.textContent = total.toLocaleString('en');
+    };
+
+    textarea.addEventListener('input', () => {
+      autoResize();
+      updateCount();
+    });
+
+    textarea.addEventListener('focus', () => disableCheckers(textarea));
+    disableCheckers(textarea);
+
+    const { jsPDF } = window.jspdf || {};
+
+    downloadBtn.addEventListener('click', () => {
+      if (!jsPDF) {
+        alert('PDF library failed to load. Please try again.');
+        return;
+      }
+
+      const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+      const margin = 40;
+      const lineHeight = 18;
+      const maxWidth = doc.internal.pageSize.getWidth() - margin * 2;
+
+      const text = textarea.value || '';
+      const wordTotal = countWords(text);
+
+      const lines = doc.splitTextToSize(text || ' ', maxWidth);
+      let cursorY = margin;
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.text('Extensive Writing', margin, cursorY);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(12);
+      cursorY += lineHeight * 1.6;
+
+      doc.text(`Words: ${wordTotal}`, margin, cursorY);
+      cursorY += lineHeight * 1.4;
+
+      lines.forEach((line) => {
+        if (cursorY > doc.internal.pageSize.getHeight() - margin) {
+          doc.addPage();
+          cursorY = margin;
+        }
+        doc.text(line, margin, cursorY);
+        cursorY += lineHeight;
+      });
+
+      doc.save('extensive-writing.pdf');
+    });
+
+    // Initialize size and count for empty state
+    autoResize();
+    updateCount();
+  </script>
+</body>
+</html>
