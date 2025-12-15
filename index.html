@@ -99,6 +99,10 @@
       overflow: hidden;
     }
 
+    .writing-area.session-locked {
+      opacity: 0.9;
+    }
+
     .writing-label {
       display: block;
       margin-bottom: 8px;
@@ -125,6 +129,11 @@
       flex: 1 1 auto;
     }
 
+    textarea.session-locked {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+
     textarea:focus {
       border-color: var(--accent);
       box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
@@ -140,6 +149,20 @@
       padding-top: 4px;
       background: linear-gradient(180deg, rgba(248, 250, 252, 0) 0%, #f8fafc 32%);
       z-index: 2;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex: 0 0 auto;
+      align-items: center;
+      align-self: stretch;
+      flex-wrap: wrap;
+    }
+
+    .actions .download-btn {
+      flex: 1 1 auto;
+      white-space: nowrap;
     }
 
     .counter-box {
@@ -203,11 +226,20 @@
         padding: 14px;
       }
     }
+
+    .session-finished-note {
+      background: var(--panel);
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      color: var(--muted);
+      font-size: 14px;
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 </head>
 <body>
-  <div class="version-badge" aria-hidden="true">v7</div>
+  <div class="version-badge" aria-hidden="true">v8</div>
   <div class="app">
     <h1>Extensive Writing</h1>
     <div class="instructions">
@@ -234,12 +266,19 @@
         placeholder="Your thoughts go here..."
       ></textarea>
 
+      <div class="session-finished-note" id="session-finished-note" aria-live="polite" hidden>
+        Session finished. To start a new writing session, refresh the page.
+      </div>
+
       <div class="footer-panel">
         <div class="counter-box" aria-live="polite">
           <span class="counter-label">Words</span>
           <span id="word-count">0</span>
         </div>
-        <button class="download-btn" id="download">Download</button>
+        <div class="actions">
+          <button class="download-btn" id="finish-session">Finish session</button>
+          <button class="download-btn" id="download">Download</button>
+        </div>
       </div>
     </div>
   </div>
@@ -248,6 +287,12 @@
     const textarea = document.getElementById('writer');
     const wordCountEl = document.getElementById('word-count');
     const downloadBtn = document.getElementById('download');
+    const finishBtn = document.getElementById('finish-session');
+    const finishedNote = document.getElementById('session-finished-note');
+    const writingArea = document.querySelector('.writing-area');
+
+    let sessionState = 'idle';
+    let sessionEndTime = null;
 
     const disableCheckers = (node) => {
       if (!node) return;
@@ -288,6 +333,8 @@
       return words.length;
     };
 
+    const isSessionFinished = () => sessionState === 'finished';
+
     const logging = (() => {
       const eventLog = [];
       let sessionStarted = false;
@@ -322,16 +369,18 @@
       const shortcutKeys = new Set(['c', 'x', 'v', 'z', 'y', 'a']);
 
       const ensureSessionStarted = (timestamp) => {
-        if (sessionStarted) return;
+        if (sessionStarted || isSessionFinished()) return;
         sessionStarted = true;
         sessionStartTime = timestamp;
         lastTextChangeTime = 0;
+        sessionEndTime = null;
+        sessionState = 'active';
       };
 
       const relativeTime = () => (sessionStarted ? performance.now() - sessionStartTime : 0);
 
       const logEvent = (entry) => {
-        if (!sessionStarted) return;
+        if (!sessionStarted || isSessionFinished()) return;
         eventLog.push({
           t: Number(relativeTime().toFixed(2)),
           ...entry,
@@ -339,7 +388,7 @@
       };
 
       const recordPause = (pauseType, startTime, durationMs) => {
-        if (!sessionStarted) return;
+        if (!sessionStarted || isSessionFinished()) return;
         const durationRounded = Math.round(durationMs);
         const startMs = Math.max(0, Math.round(startTime - sessionStartTime));
         pauseSegments.push({ startMs, durationMs: durationRounded, type: pauseType });
@@ -354,7 +403,7 @@
       };
 
       const handleWritingPauseCheck = (timestamp) => {
-        if (!sessionStarted) return;
+        if (!sessionStarted || isSessionFinished()) return;
         if (awayPauseStart !== null) {
           lastTextChangeTime = timestamp;
           return;
@@ -371,12 +420,12 @@
       };
 
       const startAwayPause = (timestamp) => {
-        if (!sessionStarted || awayPauseStart !== null) return;
+        if (!sessionStarted || awayPauseStart !== null || isSessionFinished()) return;
         awayPauseStart = timestamp;
       };
 
       const endAwayPause = (timestamp) => {
-        if (!sessionStarted || awayPauseStart === null) return;
+        if (!sessionStarted || awayPauseStart === null || isSessionFinished()) return;
         const duration = timestamp - awayPauseStart;
         if (duration >= 2000) {
           recordPause('away_pause', awayPauseStart, duration);
@@ -386,6 +435,8 @@
       };
 
       const handleKeydown = (event) => {
+        if (isSessionFinished()) return;
+
         const isCharacter = event.key.length === 1 && !event.ctrlKey && !event.metaKey;
         const isTrackedKey = isCharacter || allowedKeys.has(event.key);
         const isShortcut = (event.ctrlKey || event.metaKey) && shortcutKeys.has(event.key.toLowerCase());
@@ -427,6 +478,11 @@
       };
 
       const handleInput = (event) => {
+        if (isSessionFinished()) {
+          lastValue = textarea.value;
+          return;
+        }
+
         if (!['insertText', 'deleteContentBackward', 'deleteContentForward', 'insertFromPaste', 'insertLineBreak', 'insertParagraph'].includes(event.inputType)) {
           lastValue = textarea.value;
           return;
@@ -501,6 +557,7 @@
       };
 
       const handleFocus = (type) => {
+        if (isSessionFinished()) return;
         logEvent({ type, data: {} });
       };
 
@@ -521,10 +578,10 @@
       };
 
       const getMetrics = () => {
-        if (awayPauseStart !== null) {
+        if (awayPauseStart !== null && !isSessionFinished()) {
           endAwayPause(performance.now());
         }
-        const nowTime = performance.now();
+        const nowTime = sessionEndTime !== null ? sessionEndTime : performance.now();
         const durationMs = sessionStarted ? nowTime - sessionStartTime : 0;
         const totalWords = countWords(textarea.value);
         const totalCharsTyped = totalAddedChars;
@@ -559,6 +616,20 @@
         };
       };
 
+      const finalize = (timestamp) => {
+        const nowTs = timestamp ?? performance.now();
+        if (sessionEndTime === null) {
+          sessionEndTime = nowTs;
+        }
+        if (sessionStarted && awayPauseStart !== null) {
+          const duration = sessionEndTime - awayPauseStart;
+          if (duration >= 2000) {
+            recordPause('away_pause', awayPauseStart, duration);
+          }
+          awayPauseStart = null;
+        }
+      };
+
       const init = () => {
         textarea.addEventListener('keydown', handleKeydown, true);
         textarea.addEventListener('input', handleInput);
@@ -576,7 +647,7 @@
         window.addEventListener('focus', () => endAwayPause(performance.now()));
       };
 
-      return { init, getMetrics };
+      return { init, getMetrics, finalize };
     })();
 
     const updateCount = () => {
@@ -661,6 +732,38 @@
     logging.init();
 
     window.addEventListener('resize', autoResize);
+
+    const applyFinishedState = () => {
+      textarea.readOnly = true;
+      textarea.setAttribute('aria-readonly', 'true');
+      textarea.classList.add('session-locked');
+      if (writingArea) {
+        writingArea.classList.add('session-locked');
+      }
+      if (finishedNote) {
+        finishedNote.hidden = false;
+      }
+    };
+
+    const finishSession = () => {
+      if (sessionState === 'finished') return;
+      const confirmed = window.confirm(
+        'Finishing the session will stop the writing timer and lock your text. You can still download your file.'
+      );
+      if (!confirmed) return;
+      const now = performance.now();
+      logging.finalize(now);
+      if (sessionEndTime === null) {
+        sessionEndTime = now;
+      }
+      sessionState = 'finished';
+      applyFinishedState();
+      textarea.blur();
+    };
+
+    if (finishBtn) {
+      finishBtn.addEventListener('click', finishSession);
+    }
 
     downloadBtn.addEventListener('click', () => {
       if (!jsPDF) {
