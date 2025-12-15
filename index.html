@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Docs Style Writer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html-docx-js/0.1.1/html-docx.min.js"></script>
+</head>
+  <body spellcheck="false" data-gramm="false" data-lt-active="false">
+  <header class="title-bar">
+    <div class="title-left">
+      <div class="app-icon" aria-hidden="true">W</div>
+      <div class="title-group">
+        <input
+          id="doc-title"
+          class="doc-title"
+          type="text"
+          aria-label="Document title"
+          value="Untitled document"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
+        />
+        <div class="title-meta">Saved just now</div>
+      </div>
+    </div>
+    <div class="title-actions">
+      <button class="pill-btn" id="new-doc">New</button>
+      <button class="pill-btn" id="download-docx">Download DOCX</button>
+      <button class="pill-btn" id="download-pdf">Download PDF</button>
+    </div>
+  </header>
+
+  <nav class="menu-bar" aria-label="Document menus">
+    <div class="menu">
+      <button class="menu-trigger" data-menu="file">File</button>
+      <div class="menu-panel" id="menu-file">
+        <button data-action="new-doc">New document</button>
+        <button data-action="download-docx">Download as DOCX</button>
+        <button data-action="download-pdf">Download as PDF</button>
+      </div>
+    </div>
+    <div class="menu">
+      <button class="menu-trigger" data-menu="edit">Edit</button>
+      <div class="menu-panel" id="menu-edit">
+        <button data-command="undo">Undo</button>
+        <button data-command="redo">Redo</button>
+        <button data-command="selectAll">Select all</button>
+      </div>
+    </div>
+    <div class="menu">
+      <button class="menu-trigger" data-menu="view">View</button>
+      <div class="menu-panel" id="menu-view">
+        <button data-action="zoom-90">Zoom 90%</button>
+        <button data-action="zoom-100">Zoom 100%</button>
+        <button data-action="zoom-110">Zoom 110%</button>
+      </div>
+    </div>
+  </nav>
+
+  <section class="toolbar" aria-label="Formatting toolbar">
+    <div class="toolbar-group">
+      <button data-command="undo" title="Undo">↺</button>
+      <button data-command="redo" title="Redo">↻</button>
+    </div>
+    <div class="toolbar-group">
+      <button data-command="bold" title="Bold">B</button>
+      <button data-command="italic" title="Italic">I</button>
+      <button data-command="underline" title="Underline">U</button>
+      <button data-command="insertUnorderedList" title="Bulleted list">•</button>
+      <button data-command="insertOrderedList" title="Numbered list">1.</button>
+    </div>
+    <div class="toolbar-group">
+      <button data-command="justifyLeft" title="Align left">⬅</button>
+      <button data-command="justifyCenter" title="Align center">↔</button>
+      <button data-command="justifyRight" title="Align right">➡</button>
+    </div>
+    <div class="toolbar-group">
+      <label for="page-zoom">Zoom</label>
+      <select id="page-zoom" aria-label="Page zoom">
+        <option value="0.9">90%</option>
+        <option value="1" selected>100%</option>
+        <option value="1.1">110%</option>
+      </select>
+    </div>
+  </section>
+
+  <main class="workspace">
+    <div class="page-stack" id="page-stack">
+      <div class="page" data-page="1">
+        <div class="page-meta">Page 1 — 👁️ Editing</div>
+        <div
+          class="editor"
+          contenteditable="true"
+          spellcheck="false"
+          autocorrect="off"
+          autocapitalize="none"
+          data-enable-grammarly="false"
+          data-gramm_editor="false"
+          data-gramm="false"
+          data-lt-active="false"
+          aria-label="Document body"
+        >
+          <p><br /></p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="status-bar">
+    <div id="save-status">Saved just now</div>
+    <div class="status-divider"></div>
+    <div id="word-count">0 words</div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
