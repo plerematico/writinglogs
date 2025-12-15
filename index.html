@@ -29,6 +29,21 @@
       padding: 48px 20px 64px;
     }
 
+    .version-badge {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      padding: 6px 10px;
+      border-radius: 10px;
+      background: rgba(15, 23, 42, 0.08);
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 12px;
+      letter-spacing: 0.02em;
+      pointer-events: none;
+      user-select: none;
+    }
+
     .app {
       width: min(900px, 100%);
     }
@@ -163,6 +178,7 @@
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 </head>
 <body>
+  <div class="version-badge" aria-hidden="true">v2</div>
   <div class="app">
     <h1>Extensive Writing</h1>
     <div class="instructions">
@@ -233,6 +249,210 @@
       return words.length;
     };
 
+    const logging = (() => {
+      const eventLog = [];
+      let sessionStarted = false;
+      let sessionStartTime = 0;
+      let lastInputTime = 0;
+      let lastValue = textarea.value;
+      let lastWordCount = 0;
+      let pasteEvents = 0;
+      let pastedCharacters = 0;
+      let backspaceCount = 0;
+      let deleteCount = 0;
+      const minuteBuckets = new Map();
+
+      const allowedKeys = new Set([
+        'Backspace',
+        'Delete',
+        'Enter',
+        ' ',
+        'Tab',
+        'ArrowLeft',
+        'ArrowRight',
+        'ArrowUp',
+        'ArrowDown',
+      ]);
+
+      const shortcutKeys = new Set(['c', 'x', 'v', 'z', 'y', 'a']);
+
+      const trackWords = (currentWords, eventTime) => {
+        const delta = Math.max(currentWords - lastWordCount, 0);
+        if (!sessionStarted || delta === 0) {
+          lastWordCount = currentWords;
+          return;
+        }
+        const minuteIndex = Math.floor(eventTime / 60000);
+        const prev = minuteBuckets.get(minuteIndex) || 0;
+        minuteBuckets.set(minuteIndex, prev + delta);
+        lastWordCount = currentWords;
+      };
+
+      const ensureSessionStarted = (timestamp) => {
+        if (sessionStarted) return;
+        sessionStarted = true;
+        sessionStartTime = timestamp;
+        lastInputTime = timestamp;
+        lastWordCount = countWords(textarea.value);
+      };
+
+      const relativeTime = () => (sessionStarted ? performance.now() - sessionStartTime : 0);
+
+      const logEvent = (entry) => {
+        if (!sessionStarted) return;
+        eventLog.push({
+          t: Number(relativeTime().toFixed(2)),
+          ...entry,
+        });
+      };
+
+      const handlePauseCheck = (timestamp) => {
+        if (!sessionStarted || !lastInputTime) return;
+        const delta = timestamp - lastInputTime;
+        if (delta >= 2000) {
+          logEvent({
+            type: 'pause',
+            data: { durationMs: Math.round(delta) },
+          });
+        }
+        lastInputTime = timestamp;
+      };
+
+      const handleKeydown = (event) => {
+        const isCharacter = event.key.length === 1 && !event.ctrlKey && !event.metaKey;
+        const isTrackedKey = isCharacter || allowedKeys.has(event.key);
+        const isShortcut = (event.ctrlKey || event.metaKey) && shortcutKeys.has(event.key.toLowerCase());
+        if (!sessionStarted && isCharacter) {
+          ensureSessionStarted(performance.now());
+        }
+        if (!(isTrackedKey || isShortcut)) return;
+
+        if (!sessionStarted) return;
+
+        logEvent({
+          type: 'keydown',
+          data: {
+            key: event.key,
+            code: event.code,
+            ctrl: event.ctrlKey,
+            meta: event.metaKey,
+            alt: event.altKey,
+            shift: event.shiftKey,
+            shortcut: isShortcut,
+          },
+        });
+
+        if (event.key === 'Backspace') backspaceCount += 1;
+        if (event.key === 'Delete') deleteCount += 1;
+      };
+
+      const handleInput = (event) => {
+        if (!['insertText', 'deleteContentBackward', 'deleteContentForward', 'insertFromPaste', 'insertLineBreak', 'insertParagraph'].includes(event.inputType)) {
+          lastValue = textarea.value;
+          return;
+        }
+
+        const nowTime = performance.now();
+        const previousValue = lastValue;
+        const currentValue = textarea.value;
+        const added = Math.max(currentValue.length - previousValue.length, 0);
+        const removed = Math.max(previousValue.length - currentValue.length, 0);
+
+        if (!sessionStarted && added > 0) {
+          ensureSessionStarted(nowTime);
+        }
+
+        if (!sessionStarted) {
+          lastValue = currentValue;
+          return;
+        }
+
+        handlePauseCheck(nowTime);
+
+        logEvent({
+          type: 'input',
+          data: {
+            inputType: event.inputType,
+            added,
+            removed,
+          },
+        });
+
+        if (event.inputType === 'insertFromPaste') {
+          pasteEvents += 1;
+          pastedCharacters += added;
+        }
+
+        const currentWords = countWords(currentValue);
+        trackWords(currentWords, nowTime - sessionStartTime);
+
+        lastValue = currentValue;
+      };
+
+      const handleFocus = (type) => {
+        logEvent({ type, data: {} });
+      };
+
+      const computeMinuteWpm = (durationMs) => {
+        if (!sessionStarted) return [];
+        const totalMinutes = Math.max(Math.ceil(durationMs / 60000), 1);
+        const result = [];
+        for (let i = 0; i < totalMinutes; i += 1) {
+          const words = minuteBuckets.get(i) || 0;
+          const minuteStart = i * 60000;
+          const minuteEnd = Math.min((i + 1) * 60000, durationMs);
+          const minuteDuration = Math.max(minuteEnd - minuteStart, 1);
+          const wpm = (words / (minuteDuration / 60000));
+          result.push(Number(wpm.toFixed(2)));
+        }
+        return result;
+      };
+
+      const getMetrics = () => {
+        const nowTime = performance.now();
+        const durationMs = sessionStarted ? nowTime - sessionStartTime : 0;
+        const totalWords = countWords(textarea.value);
+        const totalCharsTyped = eventLog
+          .filter((evt) => evt.type === 'input')
+          .reduce((acc, evt) => acc + (evt.data.added || 0), 0);
+        const totalPauses = eventLog.filter((evt) => evt.type === 'pause');
+        const pauseDurations = totalPauses.map((p) => p.data.durationMs || 0);
+        const totalPausedTime = pauseDurations.reduce((a, b) => a + b, 0);
+        const averagePause = pauseDurations.length ? totalPausedTime / pauseDurations.length : 0;
+        const longestPause = pauseDurations.length ? Math.max(...pauseDurations) : 0;
+        const totalCorrections = backspaceCount + deleteCount;
+        const minuteByMinute = computeMinuteWpm(durationMs);
+        return {
+          durationMs,
+          totalCharsTyped,
+          totalWords,
+          finalCharacters: textarea.value.length,
+          overallWpm: durationMs > 0 ? Number((totalWords / (durationMs / 60000)).toFixed(2)) : 0,
+          minuteByMinute,
+          backspaceCount,
+          deleteCount,
+          correctionRatio: totalCharsTyped > 0 ? Number(((totalCorrections / totalCharsTyped) * 100).toFixed(2)) : 0,
+          pasteEvents,
+          pastedCharacters,
+          pastePercentage: totalCharsTyped > 0 ? Number(((pastedCharacters / totalCharsTyped) * 100).toFixed(2)) : 0,
+          pauseCount: totalPauses.length,
+          averagePause: Number(averagePause.toFixed(2)),
+          longestPause,
+          totalPausedTime,
+          eventLog,
+        };
+      };
+
+      const init = () => {
+        textarea.addEventListener('keydown', handleKeydown, true);
+        textarea.addEventListener('input', handleInput);
+        textarea.addEventListener('focus', () => handleFocus('focus_gained'));
+        textarea.addEventListener('blur', () => handleFocus('focus_lost'));
+      };
+
+      return { init, getMetrics };
+    })();
+
     const updateCount = () => {
       const total = countWords(textarea.value);
       wordCountEl.textContent = total.toLocaleString('en');
@@ -248,12 +468,15 @@
 
     const { jsPDF } = window.jspdf || {};
 
+    logging.init();
+
     downloadBtn.addEventListener('click', () => {
       if (!jsPDF) {
         alert('PDF library failed to load. Please try again.');
         return;
       }
 
+      const metrics = logging.getMetrics();
       const doc = new jsPDF({ unit: 'pt', format: 'a4' });
       const margin = 40;
       const lineHeight = 18;
@@ -283,6 +506,51 @@
         }
         doc.text(line, margin, cursorY);
         cursorY += lineHeight;
+      });
+
+      doc.addPage();
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.text('Session Report', margin, margin);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(12);
+      let reportY = margin + lineHeight * 1.5;
+
+      const linesReport = [
+        `Total time: ${Math.round(metrics.durationMs)} ms`,
+        `Total words: ${metrics.totalWords}`,
+        `Overall WPM: ${metrics.overallWpm}`,
+        `Backspace count: ${metrics.backspaceCount}`,
+        `Delete count: ${metrics.deleteCount}`,
+        `Corrections ratio: ${metrics.correctionRatio}%`,
+        `Paste events: ${metrics.pasteEvents}`,
+        `Pasted characters: ${metrics.pastedCharacters}`,
+        `Paste percentage: ${metrics.pastePercentage}%`,
+        `Pauses: ${metrics.pauseCount}`,
+        `Average pause: ${metrics.averagePause} ms`,
+        `Longest pause: ${metrics.longestPause} ms`,
+        `Total paused time: ${metrics.totalPausedTime} ms`,
+      ];
+
+      linesReport.forEach((line) => {
+        doc.text(line, margin, reportY);
+        reportY += lineHeight;
+      });
+
+      reportY += lineHeight * 0.5;
+      doc.setFont('helvetica', 'bold');
+      doc.text('Minute-by-minute WPM', margin, reportY);
+      doc.setFont('helvetica', 'normal');
+      reportY += lineHeight;
+
+      const tableHeaders = ['Minute', 'WPM'];
+      doc.text(`${tableHeaders[0]} | ${tableHeaders[1]}`, margin, reportY);
+      reportY += lineHeight;
+
+      metrics.minuteByMinute.forEach((value, index) => {
+        doc.text(`${index + 1} | ${value}`, margin, reportY);
+        reportY += lineHeight;
       });
 
       doc.save('extensive-writing.pdf');
