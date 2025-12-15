@@ -1,18 +1,88 @@
+const wordCount = document.getElementById('word-count');
+const saveStatus = document.getElementById('save-status');
+const zoom = document.getElementById('page-zoom');
+const titleInput = document.getElementById('doc-title');
+const pageStack = document.getElementById('page-stack');
+const newDocBtn = document.getElementById('new-doc');
+const downloadDocxBtn = document.getElementById('download-docx');
+const downloadPdfBtn = document.getElementById('download-pdf');
+
 const A4_WIDTH = 794;
 const A4_HEIGHT = 1123;
 
-let wordCount;
-let saveStatus;
-let zoom;
-let titleInput;
-let pageStack;
-let newDocBtn;
-let downloadDocxBtn;
-let downloadPdfBtn;
+function getEditors() {
+  return Array.from(document.querySelectorAll('.editor'));
+}
 
-const getEditors = () => Array.from(document.querySelectorAll('.editor'));
+function activeEditor() {
+  const selection = document.getSelection();
+  const node = selection && selection.anchorNode ? selection.anchorNode : null;
+  if (node) {
+    const target = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+    const editor = target ? target.closest('.editor') : null;
+    if (editor) return editor;
+  }
+  return getEditors()[0];
+}
 
-const disableCheckers = (nodes) => {
+function updateWordCount() {
+  const text = getEditors()
+    .map((ed) => ed.innerText.trim())
+    .filter(Boolean)
+    .join(' ');
+  const count = text ? text.split(/\s+/).length : 0;
+  wordCount.textContent = `${count} word${count === 1 ? '' : 's'}`;
+}
+
+function flashSaved(message = 'Saved just now') {
+  saveStatus.textContent = message;
+  saveStatus.classList.add('pulse');
+  setTimeout(() => saveStatus.classList.remove('pulse'), 800);
+}
+
+function exec(command) {
+  const editor = activeEditor();
+  document.execCommand(command, false, null);
+  editor.focus();
+  flashSaved();
+  updateWordCount();
+  document.querySelectorAll('.menu-panel').forEach((panel) => (panel.style.display = 'none'));
+  document.querySelectorAll('.menu-trigger').forEach((btn) => btn.setAttribute('aria-expanded', 'false'));
+}
+
+function bindToolbar() {
+  document.querySelectorAll('[data-command]').forEach((btn) => {
+    btn.addEventListener('click', () => exec(btn.dataset.command));
+  });
+}
+
+function setZoom(factor) {
+  Array.from(document.querySelectorAll('.page')).forEach((page) => {
+    page.style.transform = `scale(${factor})`;
+    page.style.width = `${A4_WIDTH / factor}px`;
+    page.style.height = `${A4_HEIGHT / factor}px`;
+  });
+  zoom.value = String(factor);
+}
+
+function bindZoom() {
+  zoom.addEventListener('change', (event) => {
+    const factor = Number(event.target.value);
+    setZoom(factor);
+  });
+}
+
+function bindTitle() {
+  let timeout;
+  titleInput.addEventListener('input', () => {
+    clearTimeout(timeout);
+    document.title = titleInput.value || 'Untitled document';
+    saveStatus.textContent = 'Saving…';
+    timeout = setTimeout(() => flashSaved('Saved just now'), 600);
+  });
+}
+
+function disableCheckers(nodeList) {
   const attributes = [
     ['spellcheck', 'false'],
     ['autocorrect', 'off'],
@@ -22,79 +92,38 @@ const disableCheckers = (nodes) => {
     ['data-gramm', 'false'],
     ['data-lt-active', 'false'],
   ];
-  nodes.forEach((node) => {
+  nodeList.forEach((node) => {
     attributes.forEach(([attr, value]) => node.setAttribute(attr, value));
-    if ('spellcheck' in node) node.spellcheck = false;
-    if ('autocorrect' in node) node.autocorrect = 'off';
-    if ('autocapitalize' in node) node.autocapitalize = 'off';
+    if (Object.prototype.hasOwnProperty.call(node, 'spellcheck')) node.spellcheck = false;
+    if (Object.prototype.hasOwnProperty.call(node, 'autocorrect')) node.autocorrect = 'off';
+    if (Object.prototype.hasOwnProperty.call(node, 'autocapitalize')) node.autocapitalize = 'off';
   });
-};
+}
 
-const activeEditor = () => {
-  const selection = document.getSelection();
-  const anchor = selection && selection.anchorNode;
-  if (anchor) {
-    const target = anchor.nodeType === Node.TEXT_NODE ? anchor.parentElement : anchor;
-    const editor = target ? target.closest('.editor') : null;
-    if (editor) return editor;
-  }
-  return getEditors()[getEditors().length - 1];
-};
-
-const updateWordCount = () => {
-  const text = getEditors()
-    .map((ed) => ed.innerText.trim())
-    .filter(Boolean)
-    .join(' ');
-  const count = text ? text.split(/\s+/).length : 0;
-  wordCount.textContent = `${count} word${count === 1 ? '' : 's'}`;
-};
-
-const flashSaved = (message = 'Saved just now') => {
-  saveStatus.textContent = message;
-  saveStatus.classList.add('pulse');
-  setTimeout(() => saveStatus.classList.remove('pulse'), 800);
-};
-
-const placeCaretAtEnd = (element) => {
-  const range = document.createRange();
-  const selection = window.getSelection();
-  range.selectNodeContents(element);
-  range.collapse(false);
-  selection.removeAllRanges();
-  selection.addRange(range);
-  element.focus();
-};
-
-const setZoom = (factor) => {
-  Array.from(document.querySelectorAll('.page')).forEach((page) => {
-    page.style.transform = `scale(${factor})`;
-    page.style.width = `${A4_WIDTH / factor}px`;
-    page.style.height = `${A4_HEIGHT / factor}px`;
-  });
-  zoom.value = String(factor);
-};
-
-const createPage = (initialHTML = '<p><br /></p>') => {
+function createPage(initialHTML = '<p><br /></p>') {
   const pageCount = document.querySelectorAll('.page').length + 1;
   const page = document.createElement('div');
   page.className = 'page';
   page.dataset.page = pageCount;
+
+  const meta = document.createElement('div');
+  meta.className = 'page-meta';
+  meta.textContent = `Page ${pageCount} — 👁️ Editing`;
 
   const editor = document.createElement('div');
   editor.className = 'editor';
   editor.contentEditable = 'true';
   editor.innerHTML = initialHTML;
 
-  page.append(editor);
+  page.append(meta, editor);
   pageStack.append(page);
 
-  disableCheckers([document.body, titleInput, editor]);
   bindEditor(editor);
+  disableCheckers([document.body, titleInput, editor]);
   return editor;
-};
+}
 
-const trimExtraPages = () => {
+function trimExtraPages() {
   const pages = Array.from(document.querySelectorAll('.page'));
   for (let i = pages.length - 1; i > 0; i -= 1) {
     const editor = pages[i].querySelector('.editor');
@@ -106,80 +135,45 @@ const trimExtraPages = () => {
     }
   }
   Array.from(document.querySelectorAll('.page')).forEach((page, index) => {
+    const meta = page.querySelector('.page-meta');
+    meta.textContent = `Page ${index + 1} — 👁️ Editing`;
     page.dataset.page = index + 1;
   });
-};
+}
 
-const splitOverflow = (editor) => {
+function splitOverflow(editor) {
   const maxHeight = editor.clientHeight;
-  let current = editor;
-  while (current.scrollHeight > maxHeight + 2) {
-    const lastNode = current.lastChild;
+  while (editor.scrollHeight > maxHeight + 2) {
+    const lastNode = editor.lastChild;
     if (!lastNode) break;
     const newEditor = createPage('');
     newEditor.prepend(lastNode);
-    current = newEditor;
+    editor = newEditor;
   }
-  return current;
-};
+}
 
-const handleEditorInput = (event) => {
+function handleEditorInput(event) {
   const editor = event.currentTarget;
-  const finalEditor = splitOverflow(editor);
+  splitOverflow(editor);
   trimExtraPages();
   flashSaved('Saved');
   updateWordCount();
-  if (finalEditor !== editor) placeCaretAtEnd(finalEditor);
-};
+}
 
-const handleEditorKeydown = (event) => {
+function handleEditorKeydown(event) {
   if (event.ctrlKey && event.key === 'Enter') {
     event.preventDefault();
-    const newEditor = createPage('<p><br /></p>');
-    placeCaretAtEnd(newEditor);
+    const newEditor = createPage('');
+    newEditor.focus();
   }
-};
+}
 
-const bindEditor = (editor) => {
+function bindEditor(editor) {
   editor.addEventListener('input', handleEditorInput);
-  editor.addEventListener('keyup', updateWordCount);
   editor.addEventListener('keydown', handleEditorKeydown);
-};
+}
 
-const exec = (command) => {
-  const editor = activeEditor();
-  document.execCommand(command, false, null);
-  editor.focus();
-  flashSaved();
-  updateWordCount();
-  document.querySelectorAll('.menu-panel').forEach((panel) => (panel.style.display = 'none'));
-  document.querySelectorAll('.menu-trigger').forEach((btn) => btn.setAttribute('aria-expanded', 'false'));
-};
-
-const bindToolbar = () => {
-  document.querySelectorAll('[data-command]').forEach((btn) => {
-    btn.addEventListener('click', () => exec(btn.dataset.command));
-  });
-};
-
-const bindZoom = () => {
-  zoom.addEventListener('change', (event) => {
-    const factor = Number(event.target.value);
-    setZoom(factor);
-  });
-};
-
-const bindTitle = () => {
-  let timeout;
-  titleInput.addEventListener('input', () => {
-    clearTimeout(timeout);
-    document.title = titleInput.value || 'Untitled document';
-    saveStatus.textContent = 'Saving…';
-    timeout = setTimeout(() => flashSaved('Saved just now'), 600);
-  });
-};
-
-const resetDocument = () => {
+function resetDocument() {
   pageStack.innerHTML = '';
   createPage('');
   titleInput.value = 'Untitled document';
@@ -187,24 +181,22 @@ const resetDocument = () => {
   setZoom(1);
   updateWordCount();
   flashSaved('Cleared');
-  placeCaretAtEnd(activeEditor());
-};
+  activeEditor().focus();
+}
 
-const exportDocx = () => {
+function exportDocx() {
   const content = getEditors()
     .map((editor) => `<div style="page-break-after: always;">${editor.innerHTML}</div>`)
     .join('');
-  const converted = window.htmlDocx.asBlob(
-    `<html><head><meta charset="utf-8"></head><body>${content}</body></html>`
-  );
+  const converted = window.htmlDocx.asBlob(`<html><head><meta charset="utf-8"></head><body>${content}</body></html>`);
   const a = document.createElement('a');
   a.href = URL.createObjectURL(converted);
   a.download = `${titleInput.value || 'document'}.docx`;
   a.click();
   URL.revokeObjectURL(a.href);
-};
+}
 
-const exportPdf = async () => {
+async function exportPdf() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'px', format: [A4_WIDTH, A4_HEIGHT] });
   const editors = getEditors();
@@ -222,16 +214,16 @@ const exportPdf = async () => {
   }
 
   doc.save(`${titleInput.value || 'document'}.pdf`);
-};
+}
 
-const bindMenus = () => {
+function bindMenus() {
   const menuButtons = document.querySelectorAll('.menu-trigger');
   const panels = document.querySelectorAll('.menu-panel');
 
-  const closeMenus = () => {
+  function closeMenus() {
     panels.forEach((panel) => (panel.style.display = 'none'));
     menuButtons.forEach((btn) => btn.setAttribute('aria-expanded', 'false'));
-  };
+  }
 
   menuButtons.forEach((button) => {
     button.addEventListener('click', () => {
@@ -260,24 +252,15 @@ const bindMenus = () => {
       closeMenus();
     });
   });
-};
+}
 
-const bindActions = () => {
+function bindActions() {
   newDocBtn.addEventListener('click', resetDocument);
   downloadDocxBtn.addEventListener('click', exportDocx);
   downloadPdfBtn.addEventListener('click', exportPdf);
-};
+}
 
-const init = () => {
-  wordCount = document.getElementById('word-count');
-  saveStatus = document.getElementById('save-status');
-  zoom = document.getElementById('page-zoom');
-  titleInput = document.getElementById('doc-title');
-  pageStack = document.getElementById('page-stack');
-  newDocBtn = document.getElementById('new-doc');
-  downloadDocxBtn = document.getElementById('download-docx');
-  downloadPdfBtn = document.getElementById('download-pdf');
-
+function init() {
   disableCheckers([document.documentElement, document.body, titleInput, ...getEditors()]);
   bindToolbar();
   bindZoom();
@@ -287,12 +270,7 @@ const init = () => {
   getEditors().forEach(bindEditor);
   updateWordCount();
   setZoom(1);
-  placeCaretAtEnd(activeEditor());
-  setInterval(updateWordCount, 1000);
-};
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
-} else {
-  init();
+  activeEditor().focus();
 }
+
+init();

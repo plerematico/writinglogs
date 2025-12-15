@@ -218,12 +218,18 @@ input {
   flex-direction: column;
 }
 
+.page-meta {
+  text-align: right;
+  color: var(--subtle);
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
 .editor {
   font-size: 16px;
   line-height: 1.6;
   outline: none;
   flex: 1;
-  min-height: 0;
   max-height: 100%;
   overflow: hidden;
   caret-color: var(--blue);
