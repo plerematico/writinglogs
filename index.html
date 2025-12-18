@@ -244,8 +244,8 @@
     <h1>Extensive Writing</h1>
     <div class="instructions">
       <ol>
-        <li>Write in the box below.</li>
-        <li>Don't worry about grammar or spelling.</li>
+        <li>Write here</li>
+        <li>Don't worry about grammar or spelling</li>
       </ol>
     </div>
 
@@ -267,7 +267,7 @@
       ></textarea>
 
       <div class="session-finished-note" id="session-finished-note" aria-live="polite" hidden>
-        The session finished. To start a new writing session, refresh the page.
+        Session finished. To start a new writing session, refresh the page.
       </div>
 
       <div class="footer-panel">
@@ -689,8 +689,8 @@
         if ((longest.durationMs || 0) >= 10000) {
           const minuteMark = Math.round((longest.startMs || 0) / 60000);
           pauseDetail = longest.type === 'away_pause'
-            ? `There was a long pause around the ${minuteMark} minute mark while you were away from the writing window.`
-            : `There was a long pause around the ${minuteMark} minute mark.`;
+            ? `There was a longer pause around the ${minuteMark} minute mark while you were away from the writing window.`
+            : `There was a longer pause around the ${minuteMark} minute mark.`;
         }
       }
 
@@ -698,14 +698,12 @@
 
       let pasteSentence = '';
       if (metrics.pasteEvents && metrics.pasteEvents > 0) {
-        const mark = metrics.pasteMoments && metrics.pasteMoments.length
-          ? Math.round(metrics.pasteMoments[0] / 60000)
-          : 0;
-        pasteSentence = `You pasted text ${metrics.pasteEvents} time(s), including a larger paste around the ${mark} minute mark.`;
+        const estimatedPasteWords = Math.round((metrics.pastedCharacters || 0) / 5);
+        pasteSentence = `You pasted text ${metrics.pasteEvents} time(s), totaling about ${estimatedPasteWords} words.`;
       }
 
       const sentences = [
-        `During this writing session, you wrote for about ${minutes} minutes and finished with ${words} words. That is an average typing speed of ${wpm} words per minute.`,
+        `During this writing session, you wrote for about ${minutes} minutes and finished with ${words} words, with an average typing speed of ${wpm} words per minute.`,
         speedSentence,
         flowSentence,
         `You paused ${pauseCount} times while writing.`,
@@ -714,7 +712,7 @@
       if (pauseDetail) sentences.push(pauseDetail);
       sentences.push(`You used backspace and delete ${corrections} times to revise your text.`);
       if (pasteSentence) sentences.push(pasteSentence);
-      sentences.push('Every writing session looks different. This record only shows what happened during this writing session.');
+      sentences.push('Every writing session looks different. This record shows what happened during this writing activity.');
 
       return sentences.join(' ');
     };
