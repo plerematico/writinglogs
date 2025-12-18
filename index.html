@@ -239,7 +239,7 @@
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 </head>
 <body>
-  <div class="version-badge" aria-hidden="true">v9</div>
+  <div class="version-badge" aria-hidden="true">v10</div>
   <div class="app">
     <h1>Extensive Writing</h1>
     <div class="instructions">
@@ -343,7 +343,7 @@
       let lastValue = textarea.value;
       let pasteEvents = 0;
       let pastedCharacters = 0;
-      const pasteLineNumbers = [];
+      const pasteRanges = [];
       let backspaceCount = 0;
       let deleteCount = 0;
       let totalAddedChars = 0;
@@ -537,11 +537,10 @@
         if (event.inputType === 'insertFromPaste') {
           pasteEvents += 1;
           pastedCharacters += added;
-          const caretPos = (textarea.selectionStart ?? currentValue.length);
+          const caretPos = textarea.selectionStart ?? currentValue.length;
           const startPos = Math.max(0, caretPos - added);
-          const beforeText = previousValue.slice(0, startPos);
-          const lineNumber = (beforeText.match(/\n/g) || []).length + 1;
-          pasteLineNumbers.push(lineNumber);
+          const endPos = startPos + added;
+          pasteRanges.push({ startCharIndex: startPos, endCharIndex: endPos });
           pasteMoments.push(relativeEventMs);
         } else if (added > 0) {
           charsTypedExcludingPaste += added;
@@ -618,7 +617,7 @@
           totalPausedTime,
           pauseSegments,
           pasteMoments: [...pasteMoments],
-          pasteLineNumbers: [...pasteLineNumbers],
+          pasteRanges: [...pasteRanges],
           correctionMoments: [...correctionMoments],
         };
       };
@@ -793,6 +792,53 @@
       const text = textarea.value || '';
       const wordTotal = countWords(text);
 
+      const lineNumberWidth = 28;
+      const textStartX = margin + lineNumberWidth;
+      const usableWidth = maxWidth - lineNumberWidth;
+      const numberColor = [120, 126, 136];
+      const bodyTextColor = [0, 0, 0];
+
+      const rawLines = text.length ? text.split('\n') : [''];
+      const pdfLines = [];
+      let cumulativeChar = 0;
+
+      rawLines.forEach((rawLine, rawIdx) => {
+        const segments = rawLine === '' ? [''] : doc.splitTextToSize(rawLine, usableWidth);
+        if (!segments.length) segments.push('');
+        segments.forEach((segment) => {
+          const segmentText = segment === '' ? ' ' : segment;
+          const segmentLength = segment.length;
+          const startChar = cumulativeChar;
+          const endChar = startChar + segmentLength;
+          pdfLines.push({ text: segmentText, startChar, endChar });
+          cumulativeChar = endChar;
+        });
+        if (rawIdx < rawLines.length - 1) {
+          cumulativeChar += 1; // newline character
+        }
+      });
+
+      const derivePasteLineNumbers = () => {
+        const lines = [];
+        const ranges = metrics.pasteRanges || [];
+        pdfLines.forEach((line, idx) => {
+          line.lineNumber = idx + 1;
+        });
+        ranges.forEach((range) => {
+          const lineEntry = pdfLines.find((line) =>
+            range.startCharIndex >= line.startChar &&
+            (range.startCharIndex < line.endChar || line.endChar === line.startChar)
+          );
+          if (lineEntry) {
+            lines.push(lineEntry.lineNumber);
+          }
+        });
+        return lines;
+      };
+
+      const pasteLineNumbers = derivePasteLineNumbers();
+      metrics.pasteLineNumbers = pasteLineNumbers;
+
       let cursorY = margin;
 
       doc.setFont('helvetica', 'bold');
@@ -806,30 +852,18 @@
       doc.text(`Words: ${wordTotal}`, margin, cursorY);
       cursorY += lineHeight * 1.4;
 
-      const lineNumberWidth = 28;
-      const textStartX = margin + lineNumberWidth;
-      const usableWidth = maxWidth - lineNumberWidth;
-      const numberColor = [120, 126, 136];
-      const bodyTextColor = [0, 0, 0];
-      const textLines = text.length ? text.split('\n') : [''];
-
-      textLines.forEach((rawLine, idx) => {
-        const segments = doc.splitTextToSize(rawLine || ' ', usableWidth);
-        segments.forEach((segment, partIdx) => {
-          if (cursorY > doc.internal.pageSize.getHeight() - margin) {
-            doc.addPage();
-            cursorY = margin;
-          }
-          doc.setFontSize(10);
-          doc.setTextColor(...numberColor);
-          if (partIdx === 0) {
-            doc.text(String(idx + 1), textStartX - 8, cursorY, { align: 'right' });
-          }
-          doc.setFontSize(12);
-          doc.setTextColor(...bodyTextColor);
-          doc.text(segment, textStartX, cursorY);
-          cursorY += lineHeight;
-        });
+      pdfLines.forEach((lineObj) => {
+        if (cursorY > doc.internal.pageSize.getHeight() - margin) {
+          doc.addPage();
+          cursorY = margin;
+        }
+        doc.setFontSize(10);
+        doc.setTextColor(...numberColor);
+        doc.text(String(lineObj.lineNumber), textStartX - 8, cursorY, { align: 'right' });
+        doc.setFontSize(12);
+        doc.setTextColor(...bodyTextColor);
+        doc.text(lineObj.text, textStartX, cursorY);
+        cursorY += lineHeight;
       });
 
       doc.setTextColor(...bodyTextColor);
