@@ -343,6 +343,7 @@
       let lastValue = textarea.value;
       let pasteEvents = 0;
       let pastedCharacters = 0;
+      const pasteLineNumbers = [];
       let backspaceCount = 0;
       let deleteCount = 0;
       let totalAddedChars = 0;
@@ -536,6 +537,11 @@
         if (event.inputType === 'insertFromPaste') {
           pasteEvents += 1;
           pastedCharacters += added;
+          const caretPos = (textarea.selectionStart ?? currentValue.length);
+          const startPos = Math.max(0, caretPos - added);
+          const beforeText = previousValue.slice(0, startPos);
+          const lineNumber = (beforeText.match(/\n/g) || []).length + 1;
+          pasteLineNumbers.push(lineNumber);
           pasteMoments.push(relativeEventMs);
         } else if (added > 0) {
           charsTypedExcludingPaste += added;
@@ -612,6 +618,7 @@
           totalPausedTime,
           pauseSegments,
           pasteMoments: [...pasteMoments],
+          pasteLineNumbers: [...pasteLineNumbers],
           correctionMoments: [...correctionMoments],
         };
       };
@@ -699,7 +706,14 @@
       let pasteSentence = '';
       if (metrics.pasteEvents && metrics.pasteEvents > 0) {
         const estimatedPasteWords = Math.round((metrics.pastedCharacters || 0) / 5);
-        pasteSentence = `You pasted text ${metrics.pasteEvents} time(s), totaling about ${estimatedPasteWords} words.`;
+        const pasteLines = (metrics.pasteLineNumbers || []).map(Number).filter((n) => Number.isFinite(n));
+        if (metrics.pasteEvents === 1 && pasteLines.length === 1) {
+          pasteSentence = `You pasted text ${metrics.pasteEvents} time(s), totaling about ${estimatedPasteWords} words. This paste occurred on line ${pasteLines[0]}.`;
+        } else if (pasteLines.length) {
+          pasteSentence = `You pasted text ${metrics.pasteEvents} time(s), totaling about ${estimatedPasteWords} words. Paste actions occurred on lines ${pasteLines.join(', ')}.`;
+        } else {
+          pasteSentence = `You pasted text ${metrics.pasteEvents} time(s), totaling about ${estimatedPasteWords} words.`;
+        }
       }
 
       const sentences = [
@@ -779,7 +793,6 @@
       const text = textarea.value || '';
       const wordTotal = countWords(text);
 
-      const lines = doc.splitTextToSize(text || ' ', maxWidth);
       let cursorY = margin;
 
       doc.setFont('helvetica', 'bold');
@@ -793,14 +806,33 @@
       doc.text(`Words: ${wordTotal}`, margin, cursorY);
       cursorY += lineHeight * 1.4;
 
-      lines.forEach((line) => {
-        if (cursorY > doc.internal.pageSize.getHeight() - margin) {
-          doc.addPage();
-          cursorY = margin;
-        }
-        doc.text(line, margin, cursorY);
-        cursorY += lineHeight;
+      const lineNumberWidth = 28;
+      const textStartX = margin + lineNumberWidth;
+      const usableWidth = maxWidth - lineNumberWidth;
+      const numberColor = [120, 126, 136];
+      const bodyTextColor = [0, 0, 0];
+      const textLines = text.length ? text.split('\n') : [''];
+
+      textLines.forEach((rawLine, idx) => {
+        const segments = doc.splitTextToSize(rawLine || ' ', usableWidth);
+        segments.forEach((segment, partIdx) => {
+          if (cursorY > doc.internal.pageSize.getHeight() - margin) {
+            doc.addPage();
+            cursorY = margin;
+          }
+          doc.setFontSize(10);
+          doc.setTextColor(...numberColor);
+          if (partIdx === 0) {
+            doc.text(String(idx + 1), textStartX - 8, cursorY, { align: 'right' });
+          }
+          doc.setFontSize(12);
+          doc.setTextColor(...bodyTextColor);
+          doc.text(segment, textStartX, cursorY);
+          cursorY += lineHeight;
+        });
       });
+
+      doc.setTextColor(...bodyTextColor);
 
       doc.addPage();
       doc.setFont('helvetica', 'bold');
